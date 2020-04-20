@@ -1,5 +1,5 @@
 import pandas as pd
-
+import numpy as np
 """Definicje klas obiektów"""
 
 """Klasa czas"""
@@ -29,12 +29,13 @@ class Time():
 """Klasa punkt"""
 class Point():
 
-    def __init__(self, X = 0, Y = 0, Hel = 0, H = 0, dok = "" ):
+    def __init__(self, X = 0, Y = 0, Hel = 0, H = 0, dok = "", depth = 0):
         self.X = X
         self.Y = Y
         self.Hel = Hel
         self.H = H
         self.dok = dok
+        self.depth = depth
 
 """Definicje funkcji"""
 
@@ -54,6 +55,21 @@ def load_excel(nazwa):
     X = data[4].to_list()
     H = data[5].to_list()
     return rozwiazanie, time, X, Y, H
+
+def load_model(nazwa):
+    data = pd.read_excel(nazwa,'Arkusz1')
+    Y = data['Y'].to_list()
+    X = data['X'].to_list()
+    N = data['N'].to_list()
+    undulacja = []
+    for i, un in enumerate(X):
+        tmp=[]
+        tmp.append(float(un))
+        tmp.append(float(Y[i]))
+        tmp.append(float(N[i]))
+        tmp.append(0)
+        undulacja.append(tmp)
+    return undulacja
 
 """Wczytywanie parametrow pomiaru"""
 def load_par(nazwa):
@@ -126,3 +142,18 @@ def szukac_index(i,time_gps):
             index = szukac_czasu(time_gps, int(i.czas))
     return  index
 
+def dlugosc(X1, Y1, X2, Y2):
+    dl = np.sqrt((X2-X1) ** 2 + (Y2 - Y1) ** 2 )
+    return dl
+
+def interpoluj(X, Y, model):
+    tmp = model[:]
+    for i in tmp:
+        i[3] = dlugosc(X, Y, i[0], i[1])
+    tmp = sorted(tmp, key=lambda x: x[3])
+    suma = 0
+    waga = 0
+    for i in tmp[0:4]:
+        suma += i[2] * ( 1 / ( i[3] ** 2))
+        waga +=  1 / ( i[3] ** 2)
+    return suma/waga

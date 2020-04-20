@@ -15,6 +15,7 @@ if __name__ == '__main__':
     depth ,t_sonda = load_sonda(link1)
     czas = load_czas(link2, 'Chart 6_5_16 [0]')
     roznica, wys_tyczki = load_par(link3)
+    model = load_model('model.xlsx')
 
     #Czas z pomiaru gps
     time_gps = [Time(str(t).split()[-1]) for t in t_gps ]
@@ -45,11 +46,13 @@ if __name__ == '__main__':
     for ind, i in enumerate(time_sonda[:150]):
         index = szukac_index(i,time_gps)
         if index != 'brak danych':
-            tmp = Point(X=X[index],Y=Y[index], Hel=(H[index] - wys_tyczki - depth[ind]/3.2808), dok = rozwiazanie )
+            tmp = Point(X=X[index],Y=Y[index], Hel=(H[index] - wys_tyczki - depth[ind]/3.2808), dok = rozwiazanie, depth=depth[ind]/3.2808)
+            N = interpoluj(tmp.X, tmp.Y, model)
+            tmp.H = tmp.Hel - N
             punkty.append(tmp)
 
 
-    print(39.764-39.747 )
+
 
 
 
