@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import os
 """Definicje klas obiektów"""
 
 """Klasa czas"""
@@ -29,7 +30,8 @@ class Time():
 """Klasa punkt"""
 class Point():
 
-    def __init__(self, X = 0, Y = 0, Hel = 0, H = 0, dok = "", depth = 0):
+    def __init__(self,Nr = '', X = 0, Y = 0, Hel = 0, H = 0, dok = "", depth = 0):
+        self.Nr = Nr
         self.X = X
         self.Y = Y
         self.Hel = Hel
@@ -49,12 +51,13 @@ def load_sonda(nazwa):
 """Wczytywanie danych pomiarowych GPS"""
 def load_excel(nazwa):
     data = pd.read_excel(nazwa,'Arkusz1',header=None,)
+    numer = rozwiazanie=data[0].to_list()
     rozwiazanie=data[1].to_list()
     time = data[2].to_list()
     Y = data[3].to_list()
     X = data[4].to_list()
     H = data[5].to_list()
-    return rozwiazanie, time, X, Y, H
+    return numer, rozwiazanie, time, X, Y, H
 
 def load_model(nazwa):
     data = pd.read_excel(nazwa,'Arkusz1')
@@ -100,6 +103,34 @@ def load_czas(nazwa, nazwa_sondowania):
                     czas.append(li)
     return czas
 
+"""Zapisanie punktów do pliku"""
+def save_excel(sciezka,lista):
+    x = []
+    y = []
+    Hel = []
+    Hort = []
+    dok = []
+    numer = []
+    for  i, li in enumerate(lista):
+        numer.append(li.Nr)
+        x.append(li.X)
+        y.append(li.Y)
+        Hel.append(li.Hel)
+        Hort.append(li.H)
+        dok.append(li.dok)
+    pkt = {
+        'Numer' : numer,
+        'X' : x,
+        'Y' : y,
+        'H_elips' : Hel,
+        'H_ort' : Hort,
+        'Dokładność' : dok
+    }
+    df = pd.DataFrame(pkt)
+    df.to_excel(sciezka)
+    print("Liczba zapisanych plików: ",len(x))
+
+
 """Obliczenie czasu zerowego na podstawie wybranego soundingu"""
 def obl_czas_zerowy(zero, saund):
     zerowy = Time()
@@ -109,18 +140,24 @@ def obl_czas_zerowy(zero, saund):
 """Obliczenie czsu sredniego"""
 def czas_sredni(lista):
     suma = 0
+    vv = 0
     for i in lista:
         suma += i.czas
     t = Time()
     t.czas = suma / len(lista)
-    return t
+    for i in lista:
+        vv += (i.czas - t.czas) ** 2
+    m0 =Time()
+    m0.czas = np.sqrt(vv/(len(lista)-1))
+
+    return t , m0
 
 
 def printt(lista):
     for i in lista:
         print(i)
 
-#Wyszukiwanie określonego czasu
+"""Wyszukiwanie określonego czasu"""
 def szukac_czasu(lista,czas):
     index = 0
     zwrot = 'brak danych'
@@ -131,6 +168,7 @@ def szukac_czasu(lista,czas):
         index += 1
     return zwrot
 
+"""Wyszukiwanie indeksu okreslonego punktu"""
 def szukac_index(i,time_gps):
     if (i.czas - int(i.czas)) <= 0.5:
         index = szukac_czasu(time_gps, int(i.czas))
@@ -142,10 +180,12 @@ def szukac_index(i,time_gps):
             index = szukac_czasu(time_gps, int(i.czas))
     return  index
 
+"""Obliczanie długości ze współrzędnych"""
 def dlugosc(X1, Y1, X2, Y2):
     dl = np.sqrt((X2-X1) ** 2 + (Y2 - Y1) ** 2 )
     return dl
 
+"""Interpolacja undulacji"""
 def interpoluj(X, Y, model):
     tmp = model[:]
     for i in tmp:
@@ -157,3 +197,111 @@ def interpoluj(X, Y, model):
         suma += i[2] * ( 1 / ( i[3] ** 2))
         waga +=  1 / ( i[3] ** 2)
     return suma/waga
+
+"""Wyświetlanie komunikatu"""
+def print_czasy(nazwa,czasy,czas0,m0):
+    print('_' * 50)
+    print(nazwa)
+    print('Czasy pierwszego soundingu:')
+    for i in czasy:
+        print('\t{}'.format(i))
+    print('Czas średni:')
+    print('\t{} +- {}'.format(czas0,m0))
+    print('*' * 40)
+
+"""Wyznaczenie sciezki plików"""
+def sciezki_plikow(katalog):
+    sciezki = []
+    katalog1 = []
+    lista = os.listdir(katalog)
+    for i in lista:
+        if os.path.isdir(katalog + '/' + i):
+            katalog1.append(katalog + '/' + i)
+    for i in katalog1:
+        lista = os.listdir(i)
+        tmp = []
+        tmp1 = []
+        for j in lista:
+            naz = j.split('.')[0].split()[0].lstrip().rstrip()
+            if naz == 'Chart':
+                tmp.append(i + '/' + j)
+            elif naz == 'czasy':
+                n_cza = i + '/' + j
+            elif naz == 'GPS':
+                n_gps = i + '/' + j
+            elif naz == 'par':
+                n_par = i + '/' + j
+        tmp1.append(tmp)
+        tmp1.append(n_gps)
+        tmp1.append(n_cza)
+        tmp1.append(n_par)
+        sciezki.append(tmp1)
+    return sciezki
+
+"""Wybór punktów z określonym skokiem"""
+def selekcja(lista,skok):
+    tmp = []
+    for  i in range(0,len(lista), skok):
+        tmp.append(lista[i])
+    tmp.append(lista[-1])
+    return tmp
+
+"""Lączenie punktów z sondy z punktami GPS"""
+def laczenie_czasow(sciezka_soun, sciezka_GPS, sciezka_czas, sciezka_para, sciezka_modelu, skok, skok_zapisu):
+    #Uzyskania nazwy
+    nazwa = sciezka_soun.split('/')
+    nazwa1 = nazwa[-2]
+    nazwa = nazwa[-1].split('.')[0]
+    #Wczytane dane
+    numer, rozwiazanie, t_gps, X, Y, H = load_excel(sciezka_GPS)
+    depth ,t_sonda = load_sonda(sciezka_soun)
+    czas = load_czas(sciezka_czas, nazwa)
+    roznica, wys_tyczki = load_par(sciezka_para)
+    model = load_model(sciezka_modelu)
+    for j, i in enumerate(rozwiazanie):
+        if i == 'Pomierzony':
+            rozwiazanie[j] = 'Fix'
+        elif i == 'Nawigacyjny':
+            rozwiazanie[j] = 'Auto'
+        elif i == 'Measured':
+            rozwiazanie[j] = 'Fix'
+        elif i == 'Navigated':
+            rozwiazanie[j] = 'Auto'
+        else:
+            rozwiazanie[j] = ''
+    #Czas z pomiaru gps
+    time_gps = [Time(str(t).split()[-1]) for t in t_gps ]
+    #Godziny i indexy wybranych soundingów
+    time = []
+    for t in czas:
+        li = t.split()
+        index = int(li[1])-1
+        tmp = Time(li[2])
+        tmp.czas +=  roznica.czas
+        time.append([index, tmp])
+    #Czas pierwszego soundingu
+    czas_zerowy = [obl_czas_zerowy(t,t_sonda) for t in time]
+    czas_zerowy_sredni ,m0 = czas_sredni(czas_zerowy)
+    #Wyswietlenie raportu z obliczenia czasu zerowego
+    print_czasy(nazwa,czas_zerowy,czas_zerowy_sredni,m0)
+    #Czasy soundingów
+    time_sonda = []
+    for t in t_sonda:
+        tmp = Time()
+        tmp.czas = czas_zerowy_sredni.czas + t/1000
+        time_sonda.append(tmp)
+    punkty = []
+    #Przypisane współrzędneych soundingom
+    for ind, i in enumerate(time_sonda):
+        index = szukac_index(i,time_gps)
+        if index != 'brak danych':
+            tmp = Point(Nr=numer[index],X=X[index],Y=Y[index], Hel=(H[index] - wys_tyczki - depth[ind]/3.2808), dok = rozwiazanie[index], depth=depth[ind]/3.2808)
+            N = interpoluj(tmp.X, tmp.Y, model)
+            tmp.H = tmp.Hel - N
+            punkty.append(tmp)
+    #Wyświetlenie raportu
+    print('Liczba punktów z pomiaru: {}'.format(len(punkty)))
+    # Zapis punktów do excela
+    save_excel('dane_wyjsciowe/' + nazwa1 + '_' + nazwa + '.xlsx', selekcja(punkty,skok_zapisu))
+    print('_' * 50)
+    return  selekcja(punkty,skok)
