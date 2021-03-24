@@ -302,6 +302,6 @@ def laczenie_czasow(sciezka_soun, sciezka_GPS, sciezka_czas, sciezka_para, sciez
     #Wyświetlenie raportu
     print('Liczba punktów z pomiaru: {}'.format(len(punkty)))
     # Zapis punktów do excela
-    save_excel('dane_wyjsciowe/' + nazwa1 + '_' + nazwa + '.xlsx', selekcja(punkty,skok_zapisu))
+    save_excel('dane_wyjsciowe/' + nazwa1 + '_' + nazwa + '.xls', selekcja(punkty,skok_zapisu))
     print('_' * 50)
     return  selekcja(punkty,skok)
